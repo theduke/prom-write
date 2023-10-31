@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+  "./lib",
+  "./bin",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Christoph Herzog <chris@theduke.at>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/theduke/prometheus-remote-write"
+# rust-version = "1.70"
