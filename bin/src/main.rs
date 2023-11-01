@@ -77,7 +77,10 @@ fn run() -> Result<(), anyhow::Error> {
 
     let (parts, body) = req.into_parts();
 
-    let agent = ureq::builder().build();
+    let timeout = args
+        .timeout
+        .unwrap_or_else(|| std::time::Duration::from_secs(60));
+    let agent = ureq::builder().timeout(timeout).build();
 
     let mut req = agent.request(parts.method.as_str(), &parts.uri.to_string());
     for key in parts.headers.keys() {
@@ -103,6 +106,7 @@ fn run() -> Result<(), anyhow::Error> {
 #[derive(Clone, Debug)]
 struct Args {
     url: url::Url,
+    timeout: Option<std::time::Duration>,
     input: MetricOrFile,
 }
 
@@ -139,6 +143,9 @@ Arguments:
 
   -u, --url <url>: required!
     Prometheus remote write endpoint URL
+
+  --timeout <timeout:SECONDS>
+    Timeout for the HTTP request. If not specified, the default is 60 seconds.
 
 Read metrics from file:
   -f, --file <path>:
@@ -191,6 +198,7 @@ Examples:
         let mut labels = HashMap::<String, String>::new();
         let mut number: Option<f64> = None;
         let mut help = false;
+        let mut timeout: Option<std::time::Duration> = None;
 
         // input file
         let mut input_file: Option<String> = None;
@@ -217,6 +225,17 @@ Examples:
                     let value = url::Url::parse(value)
                         .with_context(|| "invalid url '{value}' for argument -u/--url")?;
                     url = Some(value);
+                    index += 1;
+                }
+                "--timeout" => {
+                    index += 1;
+                    let value = args
+                        .get(index)
+                        .context("--timeout argument requires a value (timeout in seconds)")?
+                        .trim()
+                        .parse::<u64>()
+                        .context("--timeout argument requires a number (timeout in seconds)")?;
+                    timeout = Some(std::time::Duration::from_secs(value));
                     index += 1;
                 }
                 "-f" | "--file" => {
@@ -355,6 +374,10 @@ Examples:
             }
         };
 
-        Ok(Args { url, input })
+        Ok(Args {
+            url,
+            timeout,
+            input,
+        })
     }
 }
