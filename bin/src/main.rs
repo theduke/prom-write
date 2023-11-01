@@ -9,10 +9,14 @@ fn main() {
     run().unwrap();
 }
 
+const fn crate_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 fn run() -> Result<(), anyhow::Error> {
     let cli_args = std::env::args().skip(1).collect::<Vec<_>>();
     let args = Args::parse(&cli_args)?;
-    let user_agent = format!("prom-write/{}", env!("CARGO_PKG_VERSION"));
+    let user_agent = format!("prom-write/{}", crate_version());
 
     // Sort labels by name, and the samples by timestamp, according to the spec.
     let req = args.build_http_req(&user_agent)?;
@@ -146,9 +150,10 @@ enum MetricType {
 }
 
 impl Args {
-    const USAGE: &'static str = r#"
+    fn usage() -> String {
+        const USAGE: &'static str = r#"prom-write ${version}
 
-prom-write - write metrics to Prometheus over the remote-write API
+Write metrics to Prometheus over the remote-write API
 
 Arguments:
   -h, --help
@@ -205,11 +210,15 @@ Examples:
 
 "#;
 
+        USAGE.replace("${version}", crate_version())
+    }
+
     fn parse(args: &[String]) -> Result<Args, anyhow::Error> {
         let mut url: Option<url::Url> = None;
 
         // single metric
         let mut help = false;
+        let mut version = false;
         let mut name: Option<String> = None;
         let mut kind: Option<MetricType> = None;
         let mut labels = HashMap::<String, String>::new();
@@ -227,6 +236,10 @@ Examples:
             match value.as_str() {
                 "--help" => {
                     help = true;
+                    break;
+                }
+                "--version" => {
+                    version = true;
                     break;
                 }
                 "-u" | "--url" => {
@@ -372,7 +385,11 @@ Examples:
         }
 
         if help {
-            println!("{}", Self::USAGE);
+            println!("{}", Self::usage());
+            std::process::exit(0);
+        }
+        if version {
+            println!("prom-write {}", crate_version());
             std::process::exit(0);
         }
 
