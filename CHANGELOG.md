@@ -1,6 +1,24 @@
 # Changelog - prom-write
 
 
+## [0.2.1] - 2023-11-01
+
+### Features
+
+- Extend counter type autodetection
+
+### Bug Fixes
+
+- Fix text format parsing + time series sorting
+
+### Documentation
+
+- Fix Nix instructions
+
+### Testing
+
+- Add lots of tests
+
 ## [0.2.0] - 2023-11-01
 
 ### Features
