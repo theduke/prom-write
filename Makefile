@@ -30,6 +30,18 @@ fix: clippyfix fmt
 	@echo "All fixes applied!"
 	@echo ""
 
+
+codecov-html:
+	@echo "Generating HTML coverage report..."
+	cargo llvm-cov --workspace test --html
+	@echo "Coverage report generated!"
+	@echo ""
+
+watch-codecov-html:
+	@echo "Watching for changes to generate HTML coverage report..."
+	cargo watch -s "make codecov-html"
+	@echo ""
+
 # Linting
 
 check-fmt:

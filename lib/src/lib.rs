@@ -126,7 +126,6 @@ impl WriteRequest {
         let parsed = prometheus_parse::Scrape::parse(iter)
             .map_err(|err| format!("could not parse input as Prometheus text format: {err}"))?;
 
-
         let mut series = samples_to_timeseries(parsed.samples)?;
         series.sort_by(|a, b| {
             let name_a = a.labels.iter().find(|x| x.name == LABEL_NAME).unwrap();
