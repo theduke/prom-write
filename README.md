@@ -42,10 +42,10 @@ directly if you have Flake support enabled:
 
 ```bash
 # Run once
-nix run github.com/theduke/prom-write -- --help
+nix run github:theduke/prom-write -- --help
 
 # Open a shell
-nix shell github.com/theduke/prom-write
+nix shell github:theduke/prom-write
 prom-write --help
 ```
 
