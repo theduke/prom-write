@@ -10,7 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-prometheus_remote_write = { version = "0.1.0", path = "../lib", features = ["parse", "compression", "http"] }
+prometheus_remote_write = { version = "0.2.0", path = "../lib", features = ["parse", "compression", "http"] }
 
 anyhow = { version = "1.0.75", features = ["backtrace"] }
 ureq = { version = "2.8.0", default-features = false, features = ["tls", "rustls"] }
