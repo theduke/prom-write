@@ -62,6 +62,7 @@
             cargo-udeps
             cargo-all-features
             cargo-release
+            git-cliff
           ];
         };
       }
