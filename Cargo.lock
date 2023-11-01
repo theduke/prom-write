@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "prom-write"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "http",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus_remote_write"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "http",
  "pretty_assertions",
