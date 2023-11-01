@@ -1,3 +1,7 @@
+# Rust build dir
 /target
+# direnv cache + config
 .direnv
 .envrc
+# nix build output directory
+/result
