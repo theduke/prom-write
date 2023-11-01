@@ -1,0 +1,60 @@
+name: Release
+on:
+  push:
+    tags:
+      # Only run for version tags
+    - 'v*'
+
+jobs:
+  build_and_test:
+    name: Build and test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Rust tools
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-udeps,cargo-deny,cargo-all-features
+
+    - name: Lint and test
+      run: make ci
+
+    - name: Build release binary
+      run: make build-release
+
+    - name: Upload binary to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        make build-release
+
+        case "${{ matrix.os }}" in
+          ubuntu-latest)
+            export BINPATH="linux-x86/prom-write"
+            ;;
+
+          windows-latest)
+            export BINPATH="windows-x86/prom-write.exe"
+            ;;
+
+          macos-latest)
+            export BINPATH="apple-aarch/prom-write"
+            ;;
+
+          *)
+            echo "Unknown OS"
+            exit 1
+            ;;
+        esac
+
+        mkdir -p release/$(dirname BINPATH)
+        mv "target/release/$(basename $BINPATH)" "$BINPATH"
+
+        gh release upload "GITHUB_REF_NAME" "$BINPATH"
+
+

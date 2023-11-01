@@ -98,6 +98,15 @@ test-nix:
 	@echo "Nix tests passed!"
 	@echo ""
 
+build-release:
+	@echo "Building release binary..."
+	cargo build --release
+	@echo "Release binary built!"
+	@echo "Sanity check of binary..."
+	./target/release/prom-write --help
+	@echo "Binary works!"
+	@echo ""
+
 publish:
 	@echo "Publishing to crates.io..."
 	cargo release --version
@@ -105,6 +114,7 @@ publish:
 	cargo release
 	@echo "Published to crates.io!"
 	@echo ""
+
 
 .phony:
 	echo hello
