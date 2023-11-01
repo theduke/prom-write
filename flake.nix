@@ -62,6 +62,7 @@
             cargo-udeps
             cargo-all-features
             cargo-release
+            cargo-llvm-cov
             git-cliff
           ];
         };
