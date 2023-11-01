@@ -289,7 +289,10 @@ impl Cmd {
                 let kind = match kind {
                     Some(k) => k,
                     None => {
-                        if name.ends_with("_total") {
+                        if name.ends_with("_total")
+                            || name.ends_with("_sum")
+                            || name.ends_with("_count")
+                        {
                             MetricType::Counter
                         } else {
                             MetricType::Gauge
@@ -735,6 +738,43 @@ mod tests {
             args.input,
             MetricOrFile::Metric {
                 name: "x_total".to_string(),
+                kind: MetricType::Counter,
+                labels: HashMap::new(),
+                value: 123.0,
+            }
+        );
+
+        let args = Cmd::parse(&mkargs(["-u", "http://local", "-n", "x_sum", "-v", "123"]))
+            .unwrap()
+            .try_into_run()
+            .unwrap();
+
+        assert_eq!(
+            args.input,
+            MetricOrFile::Metric {
+                name: "x_sum".to_string(),
+                kind: MetricType::Counter,
+                labels: HashMap::new(),
+                value: 123.0,
+            }
+        );
+
+        let args = Cmd::parse(&mkargs([
+            "-u",
+            "http://local",
+            "-n",
+            "x_count",
+            "-v",
+            "123",
+        ]))
+        .unwrap()
+        .try_into_run()
+        .unwrap();
+
+        assert_eq!(
+            args.input,
+            MetricOrFile::Metric {
+                name: "x_count".to_string(),
                 kind: MetricType::Counter,
                 labels: HashMap::new(),
                 value: 123.0,
