@@ -5,18 +5,11 @@
 
 ### Features
 
-- Add request --timeout argument
-- Add --headers argument for speciyfing custom headers
-
-### Miscellaneous Tasks
-
-- Only --help works for help, not -h
-
-### Testing
-
-- Add some argument parsing tests
-- Restructure for better testability + add tests
-
+- Add request --timeout argument:
+    allows configuring http request timeout in seconds
+- Add -h, --header argument for speciyfing custom headers
+    Note: only --help works for help now, -h is for headers
+- Add --version flag + show version in help
 
 ## [0.1.0] - 2023-11-01
 
