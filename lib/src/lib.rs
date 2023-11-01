@@ -219,3 +219,93 @@ pub struct Sample {
     #[prost(int64, tag = "2")]
     pub timestamp: i64,
 }
+
+#[cfg(all(feature = "parse", feature = "compression"))]
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    #[test]
+    fn test_name() {
+        let input = r#"
+# TYPE mycounter counter
+# TYPE mygauge gauge
+
+mygauge 100 100
+http_requests_total{method="post",code="200"} 1027 1395066363000
+mycounter 100 100
+alpha 10 1000
+http_requests_total{method="post",code="200"} 50 1000
+    "#;
+
+        let req = WriteRequest::from_text_format(input.to_string()).unwrap();
+
+        assert_eq!(
+            req,
+            WriteRequest {
+                timeseries: vec![
+                    TimeSeries {
+                        labels: vec![Label {
+                            name: LABEL_NAME.to_string(),
+                            value: "alpha".to_string()
+                        },],
+                        samples: vec![Sample {
+                            value: 10.0,
+                            timestamp: 1000,
+                        },]
+                    },
+                    TimeSeries {
+                        labels: vec![
+                            Label {
+                                name: LABEL_NAME.to_string(),
+                                value: "http_requests_total".to_string()
+                            },
+                            Label {
+                                name: "code".to_string(),
+                                value: "200".to_string()
+                            },
+                            Label {
+                                name: "method".to_string(),
+                                value: "post".to_string()
+                            },
+                        ],
+                        samples: vec![
+                            Sample {
+                                value: 50.0,
+                                timestamp: 1000,
+                            },
+                            Sample {
+                                value: 1027.0,
+                                timestamp: 1395066363000
+                            },
+                        ]
+                    },
+                    TimeSeries {
+                        labels: vec![Label {
+                            name: LABEL_NAME.to_string(),
+                            value: "mycounter".to_string()
+                        },],
+                        samples: vec![Sample {
+                            value: 100.0,
+                            timestamp: 100,
+                        }],
+                    },
+                    TimeSeries {
+                        labels: vec![Label {
+                            name: LABEL_NAME.to_string(),
+                            value: "mygauge".to_string()
+                        },],
+                        samples: vec![Sample {
+                            value: 100.0,
+                            timestamp: 100,
+                        }],
+                    },
+                ]
+            }
+        );
+
+        let _x = req.clone().encode_proto3();
+        let _y = req.encode_compressed();
+    }
+}
