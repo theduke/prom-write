@@ -107,11 +107,11 @@ build-release:
 	@echo "Binary works!"
 	@echo ""
 
-publish:
+publish-minor:
 	@echo "Publishing to crates.io..."
 	cargo release --version
 	export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git
-	cargo release
+	cargo release --execute minor
 	@echo "Published to crates.io!"
 	@echo ""
 
