@@ -101,6 +101,7 @@ test-nix:
 publish:
 	@echo "Publishing to crates.io..."
 	cargo release --version
+	export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git
 	cargo release
 	@echo "Published to crates.io!"
 	@echo ""
