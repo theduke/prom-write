@@ -22,7 +22,7 @@ run-prometheus-docker:
 
 changelog:
 	@echo "Generating changelog..."
-	git-cliff --prepend --output CHANGELOG.md
+	git-cliff --unreleased --prepend CHANGELOG.md
 	@echo "Changelog generated!"
 	@echo ""
 
