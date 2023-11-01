@@ -65,7 +65,7 @@ impl Args {
                 value,
             } => {
                 let mut labels = labels
-                    .into_iter()
+                    .iter()
                     .map(|(k, v)| Label {
                         name: k.clone(),
                         value: v.clone(),
@@ -100,7 +100,7 @@ impl Args {
                     stdin.read_to_string(&mut buf)?;
                     buf
                 } else {
-                    std::fs::read_to_string(&path)
+                    std::fs::read_to_string(path)
                         .with_context(|| format!("could not read file '{path}'"))?
                 };
 
@@ -151,7 +151,7 @@ enum MetricType {
 
 impl Args {
     fn usage() -> String {
-        const USAGE: &'static str = r#"prom-write ${version}
+        const USAGE: &str = r#"prom-write ${version}
 
 Write metrics to Prometheus over the remote-write API
 
