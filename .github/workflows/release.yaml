@@ -6,8 +6,26 @@ on:
     - 'v*'
 
 jobs:
-  build_and_test:
-    name: Build and test
+  create_release:
+    name: Create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Create release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run:
+        gh release create --draft "$GITHUB_REF_NAME" -F CHANGELOG.md
+
+  build_and_upload_release_binary:
+    name: Build and upload release binary
+    needs: create_release
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -31,19 +49,20 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set -Eeuxo pipefail
         make build-release
 
         case "${{ matrix.os }}" in
           ubuntu-latest)
-            export BINPATH="linux-x86/prom-write"
+            export ARCH="linux-x86"
             ;;
 
           windows-latest)
-            export BINPATH="windows-x86/prom-write.exe"
+            export ARCH="windows-x86"
             ;;
 
           macos-latest)
-            export BINPATH="apple-aarch/prom-write"
+            export ARCH="apple-aarch"
             ;;
 
           *)
@@ -52,9 +71,24 @@ jobs:
             ;;
         esac
 
-        mkdir -p release/$(dirname BINPATH)
-        mv "target/release/$(basename $BINPATH)" "$BINPATH"
+        mkdir -p "release/$ARCH"
+        mv "target/release/prom-write" "release/$ARCH/prom-write"
 
-        gh release upload "GITHUB_REF_NAME" "$BINPATH"
+        gh release list
+        gh release upload "$GITHUB_REF_NAME" "release/$ARCH"
 
+  finalize_release:
+    name: Finalize release
+    needs: build_and_upload_release_binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
 
+    - name: Finalize release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run:
+        gh release edit "$GITHUB_REF_NAME" --draft=false
