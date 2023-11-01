@@ -29,11 +29,9 @@
           cargoLock.lockFile = ./Cargo.lock;
 
           nativeBuildInputs = with pkgs; [
-            pkg-config
           ];
 
           buildInputs = with pkgs; [
-            openssl
           ];
 
           # meta = with pkgs.stdenv.lib; {
@@ -59,8 +57,6 @@
             pkg-config
           ];
           buildInputs = with pkgs; [
-            openssl
-
             # Tooling
             cargo-deny
             cargo-udeps
