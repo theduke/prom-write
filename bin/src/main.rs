@@ -202,11 +202,11 @@ Examples:
         let mut url: Option<url::Url> = None;
 
         // single metric
+        let mut help = false;
         let mut name: Option<String> = None;
         let mut kind: Option<MetricType> = None;
         let mut labels = HashMap::<String, String>::new();
         let mut number: Option<f64> = None;
-        let mut help = false;
         let mut headers = Vec::<(String, String)>::new();
         let mut timeout: Option<std::time::Duration> = None;
 
@@ -218,7 +218,7 @@ Examples:
             let value = &args[index];
 
             match value.as_str() {
-                "-h" | "--help" => {
+                "--help" => {
                     help = true;
                     break;
                 }
