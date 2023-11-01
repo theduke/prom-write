@@ -308,6 +308,7 @@ name = "prom-write"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "http",
  "prometheus_remote_write",
  "ureq",
  "url",

@@ -21,7 +21,7 @@ pub const REMOTE_WRITE_VERSION_01: &str = "0.1.0";
 ///   reserved  3;
 /// }
 /// ```
-#[derive(prost::Message, Clone)]
+#[derive(prost::Message, Clone, PartialEq)]
 pub struct WriteRequest {
     #[prost(message, repeated, tag = "1")]
     pub timeseries: Vec<TimeSeries>,
@@ -159,7 +159,7 @@ impl WriteRequest {
 ///   repeated Sample samples = 2;
 /// }
 /// ```
-#[derive(prost::Message, Clone)]
+#[derive(prost::Message, Clone, PartialEq)]
 pub struct TimeSeries {
     #[prost(message, repeated, tag = "1")]
     pub labels: Vec<Label>,
@@ -203,7 +203,7 @@ pub struct Label {
 ///   int64 timestamp = 2;
 /// }
 /// ```
-#[derive(prost::Message, Clone)]
+#[derive(prost::Message, Clone, PartialEq)]
 pub struct Sample {
     #[prost(double, tag = "1")]
     pub value: f64,

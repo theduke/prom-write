@@ -12,68 +12,10 @@ fn main() {
 fn run() -> Result<(), anyhow::Error> {
     let cli_args = std::env::args().skip(1).collect::<Vec<_>>();
     let args = Args::parse(&cli_args)?;
-
-    let req = match args.input {
-        MetricOrFile::Metric {
-            name,
-            kind: _,
-            labels,
-            value,
-        } => {
-            let mut labels = labels
-                .into_iter()
-                .map(|(k, v)| Label { name: k, value: v })
-                .collect::<Vec<_>>();
-            labels.push(Label {
-                name: LABEL_NAME.to_string(),
-                value: name,
-            });
-
-            let time: i64 = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-                .try_into()
-                .expect("timestamp is too large");
-
-            let timeseries = vec![TimeSeries {
-                labels,
-                samples: vec![prometheus_remote_write::Sample {
-                    value,
-                    timestamp: time,
-                }],
-            }];
-
-            WriteRequest { timeseries }
-        }
-        MetricOrFile::File(path) => {
-            let contents = if path == "-" {
-                let mut stdin = std::io::stdin().lock();
-                let mut buf = String::new();
-                stdin.read_to_string(&mut buf)?;
-                buf
-            } else {
-                std::fs::read_to_string(&path)
-                    .with_context(|| format!("could not read file '{path}'"))?
-            };
-
-            prometheus_remote_write::WriteRequest::from_text_format(contents).map_err(|err| {
-                anyhow::anyhow!("could not parse input as Prometheus text format: {err}")
-            })?
-        }
-    };
-
-    // Content-Encoding: snappy
-    // Content-Type: application/x-protobuf
-    // User-Agent: <name & version of the sender>
-    // X-Prometheus-Remote-Write-Version: 0.1.0
-
     let user_agent = format!("prom-write/{}", env!("CARGO_PKG_VERSION"));
 
     // Sort labels by name, and the samples by timestamp, according to the spec.
-    let req = req
-        .build_http_request(&args.url, &user_agent)
-        .map_err(|err| anyhow::anyhow!("could not build HTTP request: {err}"))?;
+    let req = args.build_http_req(&user_agent)?;
 
     let (parts, body) = req.into_parts();
 
@@ -88,11 +30,6 @@ fn run() -> Result<(), anyhow::Error> {
                 value.to_str().context("non-utf8 http header value")?,
             );
         }
-    }
-
-    // Add custom headers.
-    for (key, val) in args.headers {
-        req = req.set(&key, &val);
     }
 
     let res = req
@@ -111,7 +48,79 @@ struct Args {
     url: url::Url,
     timeout: Option<Duration>,
     input: MetricOrFile,
-    headers: Vec<(String, String)>,
+    headers: http::HeaderMap,
+}
+
+impl Args {
+    fn build_write_request(&self) -> Result<WriteRequest, anyhow::Error> {
+        match &self.input {
+            MetricOrFile::Metric {
+                name,
+                kind: _,
+                labels,
+                value,
+            } => {
+                let mut labels = labels
+                    .into_iter()
+                    .map(|(k, v)| Label {
+                        name: k.clone(),
+                        value: v.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                labels.push(Label {
+                    name: LABEL_NAME.to_string(),
+                    value: name.clone(),
+                });
+
+                let time: i64 = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+                    .try_into()
+                    .expect("timestamp is too large");
+
+                let timeseries = vec![TimeSeries {
+                    labels,
+                    samples: vec![prometheus_remote_write::Sample {
+                        value: *value,
+                        timestamp: time,
+                    }],
+                }];
+
+                Ok(WriteRequest { timeseries })
+            }
+            MetricOrFile::File(path) => {
+                let contents = if path == "-" {
+                    let mut stdin = std::io::stdin().lock();
+                    let mut buf = String::new();
+                    stdin.read_to_string(&mut buf)?;
+                    buf
+                } else {
+                    std::fs::read_to_string(&path)
+                        .with_context(|| format!("could not read file '{path}'"))?
+                };
+
+                prometheus_remote_write::WriteRequest::from_text_format(contents).map_err(|err| {
+                    anyhow::anyhow!("could not parse input as Prometheus text format: {err}")
+                })
+            }
+        }
+    }
+
+    fn build_http_req(&self, user_agent: &str) -> Result<http::Request<Vec<u8>>, anyhow::Error> {
+        let req = self.build_write_request()?;
+        let mut h = req
+            .build_http_request(&self.url, user_agent)
+            .map_err(|err| anyhow::anyhow!("could not build HTTP request: {err}"))?;
+
+        for name in self.headers.keys() {
+            for value in self.headers.get_all(name) {
+                h.headers_mut().insert(name, value.clone());
+            }
+        }
+
+        Ok(h)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -205,7 +214,7 @@ Examples:
         let mut kind: Option<MetricType> = None;
         let mut labels = HashMap::<String, String>::new();
         let mut number: Option<f64> = None;
-        let mut headers = Vec::<(String, String)>::new();
+        let mut headers = http::HeaderMap::new();
         let mut timeout: Option<Duration> = None;
 
         // input file
@@ -248,7 +257,15 @@ Examples:
                     if name.is_empty() {
                         bail!("argument -h/--header requires a non-empty key: '{key}={val}'");
                     }
-                    headers.push((name.to_string(), val.to_string()));
+
+                    let key: http::HeaderName = name
+                        .parse()
+                        .context("argument -h/--header: invalid header name '{name}'")?;
+                    let value: http::HeaderValue = val
+                        .parse()
+                        .context("argument -h/--header: invalid header value: '{val}'")?;
+
+                    headers.insert(key, value);
                     index += 1;
                 }
                 "--timeout" => {
@@ -409,10 +426,35 @@ Examples:
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use http::HeaderMap;
+    use prometheus_remote_write::Sample;
+
     use super::*;
 
     fn mkargs(args: impl IntoIterator<Item = impl Into<String>>) -> Vec<String> {
         args.into_iter().map(Into::into).collect()
+    }
+
+    fn mkheaders(
+        args: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        for (k, v) in args {
+            let k = http::HeaderName::from_str(&k.into()).unwrap();
+            let v = http::HeaderValue::from_str(&v.into()).unwrap();
+            headers.insert(k, v);
+        }
+        headers
+    }
+
+    fn req_reset_timestamp(req: &mut WriteRequest) {
+        for series in &mut req.timeseries {
+            for sample in &mut series.samples {
+                sample.timestamp = 0;
+            }
+        }
     }
 
     #[test]
@@ -424,7 +466,7 @@ mod tests {
                 url: "http://test.com".parse().unwrap(),
                 timeout: None,
                 input: MetricOrFile::File("test.txt".to_string()),
-                headers: Vec::new(),
+                headers: HeaderMap::new(),
             }
         );
     }
@@ -450,10 +492,10 @@ mod tests {
                 url: "http://test.com".parse().unwrap(),
                 timeout: Some(Duration::from_secs(11)),
                 input: MetricOrFile::File("test.txt".to_string()),
-                headers: vec![
+                headers: mkheaders([
                     ("a".to_string(), "a123".to_string()),
                     ("blub".to_string(), "lala5".to_string())
-                ],
+                ]),
             }
         );
     }
@@ -479,10 +521,10 @@ mod tests {
                 url: "http://test.com:8080".parse().unwrap(),
                 timeout: Some(Duration::from_secs(11)),
                 input: MetricOrFile::File("test.txt".to_string()),
-                headers: vec![
+                headers: mkheaders([
                     ("a".to_string(), "a123".to_string()),
                     ("blub".to_string(), "lala5".to_string())
-                ],
+                ]),
             }
         );
     }
@@ -509,7 +551,26 @@ mod tests {
                     labels: HashMap::new(),
                     value: 1.5,
                 },
-                headers: Vec::new(),
+                headers: HeaderMap::new(),
+            }
+        );
+
+        let mut write_req = args.build_write_request().unwrap();
+        req_reset_timestamp(&mut write_req);
+
+        assert_eq!(
+            write_req,
+            WriteRequest {
+                timeseries: vec![TimeSeries {
+                    labels: vec![Label {
+                        name: "__name__".to_string(),
+                        value: "name".to_string(),
+                    }],
+                    samples: vec![Sample {
+                        value: 1.5,
+                        timestamp: 0,
+                    },]
+                }]
             }
         );
     }
@@ -550,9 +611,13 @@ mod tests {
                     .collect(),
                     value: 1.5,
                 },
-                headers: vec![("h1".to_string(), "a123".to_string())],
+                headers: mkheaders([("h1".to_string(), "a123".to_string())]),
             }
         );
+
+        let hreq = args.build_http_req("test").unwrap();
+        let (parts, _body) = hreq.into_parts();
+        assert_eq!(parts.headers.get("h1").unwrap(), "a123");
     }
 
     #[test]
@@ -595,7 +660,7 @@ mod tests {
                     .collect(),
                     value: 1.5,
                 },
-                headers: vec![("h1".to_string(), "a123".to_string())],
+                headers: mkheaders([("h1".to_string(), "a123".to_string())]),
             }
         );
     }
