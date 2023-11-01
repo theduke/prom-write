@@ -1,5 +1,6 @@
 [package]
 name = "prom-write"
+description = "CLI for writing metrics to Prometheus over the remote write API."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
