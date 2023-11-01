@@ -73,6 +73,9 @@ impl WriteRequest {
                     .iter()
                     .map(|(k, v)| (k.as_str(), v.as_str()))
                     .collect::<Vec<_>>();
+
+                labels.push((LABEL_NAME, sample.metric.as_str()));
+
                 labels.sort_by(|a, b| a.0.cmp(b.0));
 
                 let mut ident = sample.metric.clone();
@@ -119,11 +122,17 @@ impl WriteRequest {
             Ok(all_series.into_values().collect())
         }
 
-        let iter = [text].into_iter().map(Ok::<_, std::io::Error>);
+        let iter = text.trim().lines().map(|x| Ok(x.to_string()));
         let parsed = prometheus_parse::Scrape::parse(iter)
             .map_err(|err| format!("could not parse input as Prometheus text format: {err}"))?;
 
-        let series = samples_to_timeseries(parsed.samples)?;
+
+        let mut series = samples_to_timeseries(parsed.samples)?;
+        series.sort_by(|a, b| {
+            let name_a = a.labels.iter().find(|x| x.name == LABEL_NAME).unwrap();
+            let name_b = b.labels.iter().find(|x| x.name == LABEL_NAME).unwrap();
+            name_a.value.cmp(&name_b.value)
+        });
 
         let s = Self { timeseries: series };
 
