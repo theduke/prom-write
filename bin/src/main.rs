@@ -92,6 +92,11 @@ fn run() -> Result<(), anyhow::Error> {
         }
     }
 
+    // Add custom headers.
+    for (key, val) in args.headers {
+        req = req.set(&key, &val);
+    }
+
     let res = req
         .send_bytes(&body)
         .context("could not send HTTP request")?;
@@ -108,6 +113,7 @@ struct Args {
     url: url::Url,
     timeout: Option<std::time::Duration>,
     input: MetricOrFile,
+    headers: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug)]
@@ -143,6 +149,9 @@ Arguments:
 
   -u, --url <url>: required!
     Prometheus remote write endpoint URL
+
+  -h, --header KEY=VALUE
+    Specify additional custom headers to send in the http request.
 
   --timeout <timeout:SECONDS>
     Timeout for the HTTP request. If not specified, the default is 60 seconds.
@@ -198,6 +207,7 @@ Examples:
         let mut labels = HashMap::<String, String>::new();
         let mut number: Option<f64> = None;
         let mut help = false;
+        let mut headers = Vec::<(String, String)>::new();
         let mut timeout: Option<std::time::Duration> = None;
 
         // input file
@@ -225,6 +235,22 @@ Examples:
                     let value = url::Url::parse(value)
                         .with_context(|| "invalid url '{value}' for argument -u/--url")?;
                     url = Some(value);
+                    index += 1;
+                }
+                "-h" | "--header" => {
+                    index += 1;
+                    let (key, val) = args
+                        .get(index)
+                        .context("-h/--header argument requires a value (header pair X=Y)")?
+                        .trim()
+                        .split_once('=')
+                        .context("-h/--header argument requires a key-value pair (X=Y)")?;
+
+                    let name = key.trim();
+                    if name.is_empty() {
+                        bail!("argument -h/--header requires a non-empty key: '{key}={val}'");
+                    }
+                    headers.push((name.to_string(), val.to_string()));
                     index += 1;
                 }
                 "--timeout" => {
@@ -376,6 +402,7 @@ Examples:
 
         Ok(Args {
             url,
+            headers,
             timeout,
             input,
         })
