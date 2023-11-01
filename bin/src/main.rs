@@ -1,6 +1,6 @@
 //! prom-write: CLI for writing metrics to Prometheus over the remote-write API.
 
-use std::{collections::HashMap, io::Read};
+use std::{collections::HashMap, io::Read, time::Duration};
 
 use anyhow::{bail, Context};
 use prometheus_remote_write::{Label, TimeSeries, WriteRequest, LABEL_NAME};
@@ -77,9 +77,7 @@ fn run() -> Result<(), anyhow::Error> {
 
     let (parts, body) = req.into_parts();
 
-    let timeout = args
-        .timeout
-        .unwrap_or_else(|| std::time::Duration::from_secs(60));
+    let timeout = args.timeout.unwrap_or_else(|| Duration::from_secs(60));
     let agent = ureq::builder().timeout(timeout).build();
 
     let mut req = agent.request(parts.method.as_str(), &parts.uri.to_string());
@@ -108,15 +106,15 @@ fn run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Args {
     url: url::Url,
-    timeout: Option<std::time::Duration>,
+    timeout: Option<Duration>,
     input: MetricOrFile,
     headers: Vec<(String, String)>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum MetricOrFile {
     Metric {
         name: String,
@@ -208,7 +206,7 @@ Examples:
         let mut labels = HashMap::<String, String>::new();
         let mut number: Option<f64> = None;
         let mut headers = Vec::<(String, String)>::new();
-        let mut timeout: Option<std::time::Duration> = None;
+        let mut timeout: Option<Duration> = None;
 
         // input file
         let mut input_file: Option<String> = None;
@@ -261,7 +259,7 @@ Examples:
                         .trim()
                         .parse::<u64>()
                         .context("--timeout argument requires a number (timeout in seconds)")?;
-                    timeout = Some(std::time::Duration::from_secs(value));
+                    timeout = Some(Duration::from_secs(value));
                     index += 1;
                 }
                 "-f" | "--file" => {
@@ -406,5 +404,199 @@ Examples:
             timeout,
             input,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mkargs(args: impl IntoIterator<Item = impl Into<String>>) -> Vec<String> {
+        args.into_iter().map(Into::into).collect()
+    }
+
+    #[test]
+    fn test_parse_args_file_sparse_short() {
+        let args = Args::parse(&mkargs(["-u", "http://test.com", "-f", "test.txt"])).unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com".parse().unwrap(),
+                timeout: None,
+                input: MetricOrFile::File("test.txt".to_string()),
+                headers: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_args_file_full_short() {
+        let args = Args::parse(&mkargs([
+            "-u",
+            "http://test.com",
+            "-f",
+            "test.txt",
+            "-h",
+            "a=a123",
+            "--timeout",
+            "11",
+            "--header",
+            "blub=lala5",
+        ]))
+        .unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com".parse().unwrap(),
+                timeout: Some(Duration::from_secs(11)),
+                input: MetricOrFile::File("test.txt".to_string()),
+                headers: vec![
+                    ("a".to_string(), "a123".to_string()),
+                    ("blub".to_string(), "lala5".to_string())
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_file_full_long() {
+        let args = Args::parse(&mkargs([
+            "--url",
+            "http://test.com:8080",
+            "--file",
+            "test.txt",
+            "-h",
+            "a=a123",
+            "--timeout",
+            "11",
+            "--header",
+            "blub=lala5",
+        ]))
+        .unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com:8080".parse().unwrap(),
+                timeout: Some(Duration::from_secs(11)),
+                input: MetricOrFile::File("test.txt".to_string()),
+                headers: vec![
+                    ("a".to_string(), "a123".to_string()),
+                    ("blub".to_string(), "lala5".to_string())
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_args_metric_sparse_short() {
+        let args = Args::parse(&mkargs([
+            "-u",
+            "http://test.com",
+            "-n",
+            "name",
+            "-v",
+            "1.5",
+        ]))
+        .unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com".parse().unwrap(),
+                timeout: None,
+                input: MetricOrFile::Metric {
+                    name: "name".to_string(),
+                    kind: MetricType::Gauge,
+                    labels: HashMap::new(),
+                    value: 1.5,
+                },
+                headers: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_args_metric_full_short() {
+        let args = Args::parse(&mkargs([
+            "-u",
+            "http://test.com",
+            "-n",
+            "name",
+            "-v",
+            "1.5",
+            "-l",
+            "alph123=valval123",
+            "-l",
+            "l2=v2",
+            "--label",
+            "l3=vv3",
+            "-h",
+            "h1=a123",
+        ]))
+        .unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com".parse().unwrap(),
+                timeout: None,
+                input: MetricOrFile::Metric {
+                    name: "name".to_string(),
+                    kind: MetricType::Gauge,
+                    labels: vec![
+                        ("alph123".to_string(), "valval123".to_string()),
+                        ("l2".to_string(), "v2".to_string()),
+                        ("l3".to_string(), "vv3".to_string())
+                    ]
+                    .into_iter()
+                    .collect(),
+                    value: 1.5,
+                },
+                headers: vec![("h1".to_string(), "a123".to_string())],
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_args_metric_full_long() {
+        let args = Args::parse(&mkargs([
+            "--url",
+            "http://test.com",
+            "--name",
+            "name",
+            "--value",
+            "1.5",
+            "--type",
+            "counter",
+            "--label",
+            "alph123=valval123",
+            "-l",
+            "l2=v2",
+            "--label",
+            "l3=vv3",
+            "--header",
+            "h1=a123",
+            "--timeout",
+            "123",
+        ]))
+        .unwrap();
+        assert_eq!(
+            args,
+            Args {
+                url: "http://test.com".parse().unwrap(),
+                timeout: Some(Duration::from_secs(123)),
+                input: MetricOrFile::Metric {
+                    name: "name".to_string(),
+                    kind: MetricType::Counter,
+                    labels: vec![
+                        ("alph123".to_string(), "valval123".to_string()),
+                        ("l2".to_string(), "v2".to_string()),
+                        ("l3".to_string(), "vv3".to_string())
+                    ]
+                    .into_iter()
+                    .collect(),
+                    value: 1.5,
+                },
+                headers: vec![("h1".to_string(), "a123".to_string())],
+            }
+        );
     }
 }
